@@ -146,10 +146,11 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 ## Roadmap
 
 - [x] Basic descriptions
-- [ ] Data Scraping
+- [x] Some data uploaded to grant our contributors easy of access, all of which will be taken down later 
+- [ ] Data Scraping Script
   - [ ] Real-time stock price scraping (done for Yahoo Finance, not done for any Vietnamese platform)
   - [ ] Financial statements (duh, Cafef has API)
-- [ ] Example notebooks for trial and simple demonstrations.
+- [ ] Example notebooks for trial and simple demonstrations
 - [ ] Organizing
 
 See the [open issues](https://github.com/MadridMaverick/SOICT20221-BigData-FinancialPlatform/issues) for a full list of proposed features (and known issues).
