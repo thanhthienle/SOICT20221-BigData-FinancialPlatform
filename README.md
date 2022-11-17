@@ -195,7 +195,7 @@ Thanh-Thien Le - [@thblsky](https://twitter.com/thblsky) - thienlt.7@gmail.com
 
 ## Acknowledgments
 
-This is the list of resources and people that we would like to give credit to for helping us throughout this project. Thank you, y'all are amazing!
+This is the list of the people and the resources that we would like to give credit to for helping us throughout this project. Thank you, y'all are amazing!
 
 - [Dr. Viet-Trung Tran, PhD](https://trungtv.github.io/)
 
@@ -225,14 +225,3 @@ This is the list of resources and people that we would like to give credit to fo
 [spark-url]: https://spark.apache.org/
 [docker]: https://img.shields.io/badge/Docker-35495E?style=for-the-badge&logo=docker&logoColor=blue
 [docker-url]: https://hub.docker.com/
-
-<!-- [angular.io]: https://img.shields.io/badge/Angular-DD0031?style=for-the-badge&logo=angular&logoColor=white
-[angular-url]: https://angular.io/
-[svelte.dev]: https://img.shields.io/badge/Svelte-4A4A55?style=for-the-badge&logo=svelte&logoColor=FF3E00
-[svelte-url]: https://svelte.dev/
-[laravel.com]: https://img.shields.io/badge/Laravel-FF2D20?style=for-the-badge&logo=laravel&logoColor=white
-[laravel-url]: https://laravel.com
-[bootstrap.com]: https://img.shields.io/badge/Bootstrap-563D7C?style=for-the-badge&logo=bootstrap&logoColor=white
-[bootstrap-url]: https://getbootstrap.com
-[jquery.com]: https://img.shields.io/badge/jQuery-0769AD?style=for-the-badge&logo=jquery&logoColor=white
-[jquery-url]: https://jquery.com -->
