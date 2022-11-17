@@ -15,9 +15,9 @@
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <a href="https://github.com/MadridMaverick/SOICT20221-BigData-FinancialPlatform">
-    <img src="logo_d.png" alt="Logo" width="250" height="150">
-  </a>
+
+  ![Logo](logo_l.png#gh-light-mode-only)
+  ![Logo](logo_d.png#gh-dark-mode-only)
 
   <h3 align="center">SOICT20221-BigData-FinancialPlatform</h3>
 
@@ -147,8 +147,8 @@ _For more examples, please refer to the [Documentation](https://example.com)_
 
 - [x] Basic descriptions
 - [ ] Data Scraping
+  - [ ] Real-time stock price scraping (done for Yahoo Finance, not done for any Vietnamese platform)
   - [ ] Financial statements (duh, Cafef has API)
-  - [ ] Real-time stock price scraping
 - [ ] Example notebooks for trial and simple demonstrations.
 - [ ] Organizing
 
