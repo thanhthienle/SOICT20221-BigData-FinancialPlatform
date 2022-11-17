@@ -103,12 +103,12 @@ Let's go get 'em.
 
 ### Prerequisites
 
-<!-- This is an example of how to list things you need to use the software and how to install them. -->
+This is what you need to successfuly run this project. First of all, make sure you have Python installed. After that, do as the following steps:
 
-- npm
+<!-- - npm
   ```sh
   npm install npm@latest -g
-  ```
+  ``` -->
 
 ### Installation
 
@@ -120,9 +120,9 @@ _Here are the steps_
    ```sh
    git clone https://github.com/MadridMaverick/SOICT20221-BigData-FinancialPlatform
    ```
-2. Install NPM packages
+2. Install dependencies
    ```sh
-   npm install
+   pip install requirements.txt
    ```
    <!-- 4. Enter your API in `config.js`
       ```js
