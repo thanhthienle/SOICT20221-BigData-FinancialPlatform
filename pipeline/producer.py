@@ -10,6 +10,7 @@ from multiprocessing import Pool
 from itertools import repeat
 import schedule
 from bs4 import BeautifulSoup
+import random
 
 
 # =============================================================================
@@ -216,18 +217,18 @@ def kafka_producer_fake(kafka_producer, symbols):
     :return: None
     """
     for symbol in symbols:
-        close = 4000
-        close = close + np.random.uniform(-200, 200)
-        previous_close = close + np.random.uniform(-200, 200)
+        close = 2
+        close = close + random.randint(-100, 100)*0.01
+        previous_close = close + random.randint(-100, 100)*0.01
         change = close - previous_close
         change_percent = (close - previous_close)/previous_close * 100
         value = {"symbol": symbol,
                 "time": int(datetime.datetime.now(timezone(TIME_ZONE)).timestamp()*1000),
-                "open": close + np.random.uniform(-1, 1),
-                "high": close + np.random.uniform(0, 1),
-                "low": close + np.random.uniform(-1, 0),
+                "open": close + random.randint(-100, 100)*0.01,
+                "high": close + random.randint(0, 100)*0.01,
+                "low": close + random.randint(-100, 0)*0.01,
                 "close": close,
-                "volume": np.random.uniform(-1, 1) * 6e9,
+                "volume": int(random.choices(range(0,1000), k=1)[0]),
                 "previous_close": previous_close,
                 "change":  change,
                 "change_percent": change_percent,

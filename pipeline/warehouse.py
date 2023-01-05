@@ -141,7 +141,7 @@ class CassandraStorage(object):
         for msg in self.consumer2:
             # decode msg value from byte to utf-8
             dict_data = ast.literal_eval(msg.value.decode("utf-8"))
-            print(dict_data['previous_close'])
+            print(dict_data)
             # transform price data from string to float
             for key in ['open', 'high', 'low', 'close', 'volume', 'previous_close', 'change']:
                 dict_data[key] = string_to_float(dict_data[key])
@@ -222,6 +222,6 @@ def main_aftertradingday():
 
 
 if __name__ == "__main__":
-    main_aftertradingday()
+    # main_aftertradingday()
     main_realtime()
     main_realtime_news()

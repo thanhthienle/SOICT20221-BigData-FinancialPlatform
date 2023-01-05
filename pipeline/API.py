@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_cors import CORS, cross_origin
 import pandas as pd
 import datetime
 from cassandra.cluster import Cluster
@@ -18,6 +19,8 @@ session = cluster.connect()
 session.row_factory = dict_factory
 
 app = Flask(__name__)
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
 # Vẽ biểu đồ chứng khoán của mã code trong thời gian n ngày
 @app.route('/OLHC/<code>/<n>', methods = ['GET'])
 def getN(code, n):
@@ -36,7 +39,7 @@ def getN(code, n):
 def getBang_rightnow(code, minutes):
 
     init_time = int(datetime.datetime.now().timestamp()*1000) - int(minutes)*60*1000
-    sql_query = "SELECT * FROM {}.{} WHERE SYMBOL = '{}' and TIME>={};".format("stocks", "tick", code, init_time)
+    sql_query = "SELECT * FROM {}.{} WHERE SYMBOL = '{}' ORDER BY time DESC LIMIT 1;".format("stocks", "tick", code, init_time)
     df = pd.DataFrame()
     for row in session.execute(sql_query):
         df = df.append(pd.DataFrame(row, index=[0]))
@@ -44,6 +47,33 @@ def getBang_rightnow(code, minutes):
     df = df.reset_index(drop=True).fillna(pd.np.nan)
 
     return df.to_json()
+
+@app.route('/news', methods = ['GET'])
+def getNews():
+
+    sql_query = "SELECT * FROM {}.{} LIMIT 10".format("stocks", "news")
+    df = pd.DataFrame()
+    for row in session.execute(sql_query):
+        df = df.append(pd.DataFrame(row, index=[0]))
+    print(df.head())
+
+    df = df.reset_index(drop=True).fillna(pd.np.nan)
+
+    return df.to_json()
+
+@app.route('/prices/<code>', methods = ['GET'])
+def getPrices(code):
+
+    sql_query = "SELECT * FROM {}.{} WHERE SYMBOL = '{}' ORDER BY time DESC LIMIT 100".format("stocks", "historical", code)
+    df = pd.DataFrame()
+    for row in session.execute(sql_query):
+        df = df.append(pd.DataFrame(row, index=[0]))
+    print(df.head())
+
+    df = df.reset_index(drop=True).fillna(pd.np.nan)
+
+    return df.to_json()
+
 
 if __name__ == '__main__':
     app.run(debug = True)

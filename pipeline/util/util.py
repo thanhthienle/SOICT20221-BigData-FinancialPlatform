@@ -6,7 +6,7 @@ def string_to_float(string):
     if isinstance(string, str):
         return float(string)
     else:
-        return 0
+        return string
 
 
 def pandas_factory(col_names, table):
