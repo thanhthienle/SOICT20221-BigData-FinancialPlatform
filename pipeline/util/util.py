@@ -6,7 +6,7 @@ def string_to_float(string):
     if isinstance(string, str):
         return float(string)
     else:
-        return string
+        return 0
 
 
 def pandas_factory(col_names, table):
@@ -18,6 +18,15 @@ def splitTextToTriplet(string, n):
     grouped_words = [' '.join(words[i: i + n]) for i in range(0, len(words), n)]
     return grouped_words
 
+SYMBOL_LIST = [
+    'AAPL',
+    'MSFT',
+    'GOOG',
+    'TSLA',
+    'AMZN',
+]
+
+TIME_ZONE = 'US/Eastern'
 
 def prev_weekday(adate):
     while adate.weekday() >= 5:     # Mon-Fri are 0-4

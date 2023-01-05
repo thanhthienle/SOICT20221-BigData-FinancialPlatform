@@ -3,12 +3,13 @@ import requests
 import datetime
 import numpy as np
 from pytz import timezone
-from pipeline.util.config import config
-from definitions import TIME_ZONE, SYMBOL_LIST
+from util.config import config
+from util.util import TIME_ZONE, SYMBOL_LIST
 from kafka import KafkaProducer
-from newsapi.newsapi_client import NewsApiClient
 from multiprocessing import Pool
 from itertools import repeat
+import schedule
+from bs4 import BeautifulSoup
 
 
 # =============================================================================
@@ -84,91 +85,6 @@ def get_historical_data(symbol='AAPL', outputsize='full'):
 
         return price
 
-
-def get_intraday_data(symbol='AAPL', outputsize='compact', freq='1min'):
-    """
-    :param symbol: (str) to know which company's intraday data we are getting.
-    :param outputsize: (str) 'compact' returns only the latest 100 data points in the intraday time series; 
-                             'full' returns the full-length intraday time series.
-    :param freq: (str) the frequency to get intraday data
-    :return: (dict) the latest minute's stock price information
-        e.g.:
-            {"symbol": 'AAPL',
-             "time"  : '2019-07-26 16:00:00',
-             'open'  : 207.98,
-             'high'  : 208.0,
-             'low'   : 207.74,
-             'close' : 207.75,
-             'volume': 354454.0
-            }
-    """
-
-    # get data using AlphaVantage's API
-    url = "https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={}" \
-          "&outputsize={}&interval={}&apikey={}" \
-        .format(symbol, outputsize, freq, config['api_key'])
-    req = requests.get(url)
-
-    # if request success
-    if req.status_code == 200:
-        raw_data = json.loads(req.content)
-        try:
-            price = raw_data['Time Series (1min)']
-            meta = raw_data['Meta Data']
-
-        except KeyError:
-            print(raw_data)
-            price = None
-            meta = None
-            exit()
-        time_zone = meta['6. Time Zone']
-
-        if outputsize == 'compact':
-            # only get the most recent price
-            last_price = price[max(price.keys())]
-
-            # organize data to dict
-            value = {"symbol": symbol,
-                     "time": meta['3. Last Refreshed'],
-                     "open": last_price['1. open'],
-                     "high": last_price['2. high'],
-                     "low": last_price['3. low'],
-                     "close": last_price['4. close'],
-                     "volume": last_price['5. volume']}
-
-            print('Get {}\'s latest min data at {}'.format(symbol, datetime.datetime.now(timezone(time_zone))))
-
-        # if outputsize='full' get full-length intraday time series
-        else:
-            rename = {'symbol': 'symbol',
-                      'time': 'time',
-                      '1. open': 'open',
-                      '2. high': 'high',
-                      '3. low': 'low',
-                      '4. close': 'close',
-                      '5. volume': 'volume'}
-
-            for k, v in price.items():
-                v.update({'symbol': symbol, 'time': k})
-            price = dict((key, dict((rename[k], v) for (k, v) in value.items())) for (key, value) in price.items())
-            value = list(price.values())
-            print('Get {}\'s full length intraday data.'.format(symbol))
-
-    # if request failed, return a fake data point
-    else:
-        time_zone = TIME_ZONE
-        print('Failed: Cannot get {}\'s data at {}:{}'
-              .format(symbol, datetime.datetime.now(timezone(time_zone)), req.status_code))
-        value = {"symbol": 'None',
-                 "time": 'None',
-                 "open": 0.,
-                 "high": 0.,
-                 "low": 0.,
-                 "close": 0.,
-                 "volume": 0.}
-    return value, time_zone
-
-
 def check_trading_hour(data_time):
     if data_time.time() < datetime.time(9, 30):
         last_day = data_time - datetime.timedelta(days=1)
@@ -187,7 +103,7 @@ def get_tick_intraday_data(symbol='AAPL'):
     req = requests.get(url)
     data_time = datetime.datetime.now(timezone(time_zone))
     data_time = check_trading_hour(data_time)
-
+    print(url)
     # if request success
     if req.status_code == 200:
         raw_data = json.loads(req.content)
@@ -195,10 +111,10 @@ def get_tick_intraday_data(symbol='AAPL'):
             price = raw_data['Global Quote']
 
         except KeyError:
-            print(raw_data)
+            print("Raw data")
             price = None
             exit()
-
+        print(price)
         # organize data to dict
         value = {"symbol": symbol,
                  "time": str(data_time)[:19],
@@ -232,13 +148,32 @@ def get_tick_intraday_data(symbol='AAPL'):
 
 
 def get_news():
-    api = '23e4c7e51a9a49d39dc4e7261305dd02'
-    newsapi = NewsApiClient(api_key=api)
-    top_headlines = newsapi.get_top_headlines(country='us', category='business', page_size=70, language='en')
-    return top_headlines
+    response = requests.get("https://www.tinnhanhchungkhoan.vn/")
+    soup = BeautifulSoup(response.content, "html.parser")
+    news=[]
+    news_rank_1 = soup.find("div", class_="rank-1")
+    a_tag_rank_1 = news_rank_1.find("a")
+    img_rank_1 = a_tag_rank_1.find("img")
+    news.append({
+      "title": img_rank_1.get('alt'),
+      "source": a_tag_rank_1.get('href'),
+      "img": img_rank_1.get("src")
+    })
+    news_rank_2 = soup.find("div", class_="rank-2")
+    a_tag_rank_2 = news_rank_2.find_all("a")
+    # print(a_tag_rank_2)
+    for a_tag in a_tag_rank_2:
+      img_rank_2 = a_tag.find("img")
+      if(img_rank_2):
+        news.append({
+          "title": img_rank_2.get('alt'),
+          "source": a_tag.get('href'),
+          "img": img_rank_2.get("src")
+        })
+    return news
 
 
-def kafka_producer_single(kafka_producer, symbol='^GSPC', tick=False):
+def kafka_producer_single(kafka_producer, symbols):
     """
     :param kafka_producer: (KafkaProducer) an instance of KafkaProducer with configuration written in config.py
     :param symbol: (str) symbol of the stock
@@ -247,16 +182,7 @@ def kafka_producer_single(kafka_producer, symbol='^GSPC', tick=False):
     
     """
     # get data
-
-    if tick is False:
-        value, time_zone = get_intraday_data(symbol, outputsize='compact', freq='1min')
-
-        now_timezone = datetime.datetime.now(timezone(time_zone))
-        # transform ready-to-send data to bytes, record sending-time adjusted to the trading timezone
-        kafka_producer.send(topic=config['topic_name1'], value=bytes(str(value), 'utf-8'))
-        print("Sent {}'s min data at {}".format(symbol, now_timezone))
-    # send tick data
-    else:
+    for symbol in symbols: 
         value, time_zone = get_tick_intraday_data(symbol)
 
         now_timezone = datetime.datetime.now(timezone(time_zone))
@@ -265,44 +191,62 @@ def kafka_producer_single(kafka_producer, symbol='^GSPC', tick=False):
         print("Sent {}'s tick data at {}".format(symbol, now_timezone))
 
 
-def kafka_producer_all(kafka_producer, symbols=SYMBOL_LIST, tick=False, fake=False):
-    if not fake:
-        with Pool(len(symbols)) as pool:
-            pool.starmap(kafka_producer_single, zip(repeat(kafka_producer), symbols, repeat(tick)))
-    else:
-        with Pool(len(symbols)) as pool:
-            pool.starmap(kafka_producer_fake, zip(repeat(kafka_producer), symbols, repeat(False)))
+# def kafka_producer_all(kafka_producer, symbols=SYMBOL_LIST, tick=False, fake=False):
+#     if not fake:
+#         with Pool(len(symbols)) as pool:
+#             pool.starmap(kafka_producer_single, zip(repeat(kafka_producer), symbols, repeat(tick)))
+#     else:
+#         with Pool(len(symbols)) as pool:
+#             pool.starmap(kafka_producer_fake, zip(repeat(kafka_producer), symbols, repeat(False)))
 
 
 def kafka_producer_news(kafka_producer):
     news = get_news()
-    if news['articles']:
-        for article in news['articles']:
-            # now_timezone = datetime.datetime.now(timezone(TIME_ZONE))
-            kafka_producer.send(topic='news', value=bytes(str(article), 'utf-8'))
-            # print("Sent economy news : {}".format(now_timezone))
+    # print(news)
+    now_timezone = datetime.datetime.now(timezone(TIME_ZONE))
+    kafka_producer.send(topic='news', value=bytes(str(news), 'utf-8'))
+    print("Sent economy news : {}".format(now_timezone))
 
 
-def kafka_producer_fake(kafka_producer, symbol):
+def kafka_producer_fake(kafka_producer, symbols):
     """
     send fake data to test visualization
     :param kafka_producer: (KafkaProducer) an instance of KafkaProducer with configuration written in config.py
     :param symbol: (str)
     :return: None
     """
-
-    close = 4000
-    close = close + np.random.uniform(-200, 200)
-    value = {"symbol": symbol,
-             "time": str(datetime.datetime.now(timezone(TIME_ZONE))),
-             "open": close + np.random.uniform(-1, 1),
-             "high": close + np.random.uniform(0, 1),
-             "low": close + np.random.uniform(-1, 0),
-             "close": close,
-             "volume": np.random.uniform(-1, 1) * 6e9}
-    kafka_producer.send(topic=config['topic_name2'], value=bytes(str(value), 'utf-8'))
-    # print("Sent {}'s fake data.".format(symbol))
+    for symbol in symbols:
+        close = 4000
+        close = close + np.random.uniform(-200, 200)
+        previous_close = close + np.random.uniform(-200, 200)
+        change = close - previous_close
+        change_percent = (close - previous_close)/previous_close * 100
+        value = {"symbol": symbol,
+                "time": int(datetime.datetime.now(timezone(TIME_ZONE)).timestamp()*1000),
+                "open": close + np.random.uniform(-1, 1),
+                "high": close + np.random.uniform(0, 1),
+                "low": close + np.random.uniform(-1, 0),
+                "close": close,
+                "volume": np.random.uniform(-1, 1) * 6e9,
+                "previous_close": previous_close,
+                "change":  change,
+                "change_percent": change_percent,
+                "last_trading_day": int(datetime.datetime.now(timezone(TIME_ZONE)).timestamp()*1000)}
+        kafka_producer.send(topic=config['topic_name2'], value=bytes(str(value), 'utf-8'))
+        print("Sent {}'s fake data.".format(symbol[0]))
+        print(value)
 
 
 if __name__ == "__main__":
-    pass
+    test_producer = KafkaProducer(bootstrap_servers=config['kafka_broker'])
+    # kafka_producer(producer)
+
+    # schedule to send data every minute
+    if datetime.datetime.now(timezone(TIME_ZONE)).time() > datetime.time(16, 0, 0) or datetime.datetime.now(
+            timezone(TIME_ZONE)).time() < datetime.time(9, 30, 0):
+        schedule.every(60).seconds.do(kafka_producer_single, test_producer, SYMBOL_LIST)
+    else:
+        schedule.every(60).seconds.do(kafka_producer_fake, test_producer, SYMBOL_LIST)
+    schedule.every(900).seconds.do(kafka_producer_news, test_producer)
+    while True:
+        schedule.run_pending()

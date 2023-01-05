@@ -1,6 +1,6 @@
 config = {
-        'api_key': "8CAG54O44XZQS0IQ",
-        'api_key2': "13INPDUWVR9RM0VJ",
+        'api_key': "VJYBRJDXUOIRC5AI",
+        'api_key2': "VJYBRJDXUOIRC5AI",
         'secret': 'sk_856da84974a34eeb833fd6ea4b1bb419',
         'symbol': 'AAPL',
         'kafka_broker': 'localhost:9092',

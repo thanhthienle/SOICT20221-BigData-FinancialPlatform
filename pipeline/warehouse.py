@@ -1,11 +1,11 @@
 import ast
 import time
-from pipeline.util.util import string_to_float
-from definitions import SYMBOL_LIST
-from pipeline.util.config import config
+from util.util import string_to_float
+from util.util import SYMBOL_LIST
+from util.config import config
 from kafka import KafkaConsumer
 from cassandra.cluster import Cluster, NoHostAvailable
-from producer import get_intraday_data, get_historical_data
+from producer import get_historical_data
 
 
 # =============================================================================
@@ -53,19 +53,6 @@ class CassandraStorage(object):
                              "AND durable_writes = 'true'" % config['key_space'])
         self.session.set_keyspace(self.key_space)
 
-        # create table for intraday data
-        self.session.execute(
-            """CREATE TABLE IF NOT EXISTS INTRADAY (
-            TIME timestamp,
-            SYMBOL text,
-            OPEN float,
-            HIGH float,
-            LOW float,              
-            CLOSE float,             
-            VOLUME float,
-            PRIMARY KEY (SYMBOL, TIME)
-            );""")
-
         # create table for historical data
         self.session.execute(
             """CREATE TABLE IF NOT EXISTS HISTORICAL (
@@ -102,14 +89,11 @@ class CassandraStorage(object):
         # create table for news
         self.session.execute(
             """CREATE TABLE IF NOT EXISTS NEWS (
-            DATE date,
-            publishedAt timestamp,
             TITLE text,
             SOURCE text,
-            description text,
-            url text,
-            PRIMARY KEY (DATE, publishedAt)
-            ) WITH CLUSTERING ORDER BY (publishedAt ASC);""")
+            IMG text,
+            PRIMARY KEY (TITLE)
+            )""")
 
     def kafka_consumer(self):
         """
@@ -127,63 +111,25 @@ class CassandraStorage(object):
             'news',
             bootstrap_servers=config['kafka_broker'])
 
-    def historical_to_cassandra(self, price, intraday=False):
+    def historical_to_cassandra(self, price):
         """
         store historical data to Cassandra database
             :primary key: time,symbol
         :return: None
 
         """
-        if intraday is False:
-            for dict_data in price:
-                for key in ['open', 'high', 'low', 'close', 'volume', 'adjusted_close', 'dividend_amount',
-                            'split_coefficient']:
-                    dict_data[key] = string_to_float(dict_data[key])
-                query = "INSERT INTO HISTORICAL (time, symbol, open, high, low, close, adjusted_close, volume, " \
-                        "dividend_amount, split_coefficient) VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
-                    .format(dict_data['time'], dict_data['symbol'],
-                            dict_data['open'], dict_data['high'], dict_data['low'],
-                            dict_data['close'], dict_data['adjusted_close'], dict_data['volume'],
-                            dict_data['dividend_amount'], dict_data['split_coefficient'])
-                self.session.execute(query)
-                print("Stored {}\'s historical data at {}".format(dict_data['symbol'], dict_data['time']))
-        else:
-            for dict_data in price:
-                for key in ['open', 'high', 'low', 'close', 'volume']:
-                    dict_data[key] = string_to_float(dict_data[key])
-
-                query = "INSERT INTO INTRADAY (time, symbol, open, high, low, close, volume) " \
-                        "VALUES ('{}', '{}', {}, {}, {}, {}, {});" \
-                    .format(dict_data['time'], dict_data['symbol'],
-                            dict_data['open'], dict_data['high'], dict_data['low'],
-                            dict_data['close'], dict_data['volume'])
-
-                self.session.execute(query)
-                print("Stored {}\'s full length intraday data at {}".format(dict_data['symbol'], dict_data['time']))
-
-    def stream_to_cassandra(self):
-        """
-        store streaming data of 1min frequency to Cassandra database
-            :primary key: time,symbol
-        :return: None
-        
-        """
-        for msg in self.consumer1:
-            # decode msg value from byte to utf-8
-            dict_data = ast.literal_eval(msg.value.decode("utf-8"))
-
-            # transform price data from string to float
-            for key in ['open', 'high', 'low', 'close', 'volume']:
+        for dict_data in price:
+            for key in ['open', 'high', 'low', 'close', 'volume', 'adjusted_close', 'dividend_amount',
+                        'split_coefficient']:
                 dict_data[key] = string_to_float(dict_data[key])
-
-            query = "INSERT INTO INTRADAY (time, symbol, open, high, low, close, volume) " \
-                    "VALUES ('{}','{}', {}, {}, {}, {}, {});" \
+            query = "INSERT INTO HISTORICAL (time, symbol, open, high, low, close, adjusted_close, volume, " \
+                    "dividend_amount, split_coefficient) VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
                 .format(dict_data['time'], dict_data['symbol'],
-                        dict_data['open'], dict_data['high'], dict_data['low'], dict_data['close'],
-                        dict_data['volume'])
-
+                        dict_data['open'], dict_data['high'], dict_data['low'],
+                        dict_data['close'], dict_data['adjusted_close'], dict_data['volume'],
+                        dict_data['dividend_amount'], dict_data['split_coefficient'])
             self.session.execute(query)
-            print("Stored {}\'s min data at {}".format(dict_data['symbol'], dict_data['time']))
+            print("Stored {}\'s historical data at {}".format(dict_data['symbol'], dict_data['time']))
 
     def tick_stream_to_cassandra(self):
         """
@@ -195,13 +141,13 @@ class CassandraStorage(object):
         for msg in self.consumer2:
             # decode msg value from byte to utf-8
             dict_data = ast.literal_eval(msg.value.decode("utf-8"))
-
+            print(dict_data['previous_close'])
             # transform price data from string to float
             for key in ['open', 'high', 'low', 'close', 'volume', 'previous_close', 'change']:
                 dict_data[key] = string_to_float(dict_data[key])
 
-            dict_data['change_percent'] = float(dict_data['change_percent'].strip('%')) / 100.
-
+            # dict_data['change_percent'] = float(dict_data['change_percent'].strip('%')) / 100.
+            dict_data['change_percent'] = float(dict_data['change_percent']) / 100.
             query = "INSERT INTO TICK (time, symbol, open, high, low, close, volume, previous_close, " \
                     "change, change_percent, last_trading_day) " \
                     "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {}, '{}');" \
@@ -220,28 +166,24 @@ class CassandraStorage(object):
         """
         for symbol in SYMBOL_LIST[:]:
             value_daily = get_historical_data(symbol=symbol, outputsize='full')
-            value_min, _ = get_intraday_data(symbol=symbol, outputsize='full', freq='1min')
 
-            self.historical_to_cassandra(value_min, True)
-            self.historical_to_cassandra(value_daily, False)
+            self.historical_to_cassandra(value_daily)
             time.sleep(15)
 
     def news_to_cassandra(self):
         for msg in self.consumer3:
             dict_data = ast.literal_eval(msg.value.decode("utf-8"))
-            publishtime = dict_data['publishedAt'][:10] + ' ' + dict_data['publishedAt'][11:19]
-            try:
-                dict_data['description'] = dict_data['description'].replace('\'', '@@')
-            except Exception as e:
-                print(e)
-            query = "INSERT INTO NEWS (date, publishedAt, source, title, description, url) " \
-                    "VALUES ('{}', '{}', '{}', '{}', '{}', '{}');" \
-                .format(publishtime[:10], publishtime,
-                        dict_data['source']['name'],
-                        dict_data['title'].replace('\'', '@@'),
-                        dict_data['description'],
-                        dict_data['url'])
-            self.session.execute(query)
+            print(dict_data)
+            # publishtime = dict_data['publishedAt'][:10] + ' ' + dict_data['publishedAt'][11:19]
+            # try:
+            #     dict_data['description'] = dict_data['description'].replace('\'', '@@')
+            # except Exception as e:
+            #     print(e)
+            for data in dict_data:
+                query = "INSERT INTO NEWS (title, source, img) " \
+                        "VALUES ('{}', '{}', '{}');" \
+                    .format(data['title'], data['source'], data['img'])
+                self.session.execute(query)
 
             # print("Stored news '{}' at {}".format(dict_data['title'],dict_data['publishedAt']))
 
@@ -249,18 +191,14 @@ class CassandraStorage(object):
         self.session.execute("DROP TABLE {}".format(table_name))
 
 
-def main_realtime(symbol='^GSPC', tick=True):
+def main_realtime():
     """
     main function to store realtime data;
     recommend to set tick=False, as getting tick data would cause rate limiting error from API
     """
     database = CassandraStorage()
     database.kafka_consumer()
-    if tick is True:
-        database.tick_stream_to_cassandra()
-    else:
-        database.stream_to_cassandra()
-
+    database.tick_stream_to_cassandra()
 
 def main_realtime_news():
     database = CassandraStorage()
@@ -275,16 +213,15 @@ def main_aftertradingday():
     """
     for symbol in SYMBOL_LIST[:]:
         value_daily = get_historical_data(symbol=symbol, outputsize='full')
-        value_min, _ = get_intraday_data(symbol=symbol, outputsize='full', freq='1min')
 
         database = CassandraStorage()
         database.kafka_consumer()
 
-        database.historical_to_cassandra(value_min, True)
-        database.historical_to_cassandra(value_daily, False)
+        database.historical_to_cassandra(value_daily)
         time.sleep(15)
 
 
 if __name__ == "__main__":
-    database = CassandraStorage()
-    pass
+    main_aftertradingday()
+    main_realtime()
+    main_realtime_news()
