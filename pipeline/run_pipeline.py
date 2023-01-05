@@ -16,7 +16,11 @@ def main():
     schedule.every(3600).seconds.do(kafka_producer_news, test_producer)
     while True:
         schedule.run_pending()
-    pass
+
+    stock_database = CassandraStorage()
+    stock_database.stream_to_cassandra()
+    stock_database.tick_stream_to_cassandra()
+    stock_database.historical_to_cassandra()
 
 
 if __name__ == '__main__':
