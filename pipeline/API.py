@@ -32,7 +32,7 @@ def getN(code, n):
     df = pd.DataFrame()
     for row in session.execute(sql_query):
         df = df.append(pd.DataFrame(row, index=[0]))
-
+    df['RSI'] = computeRSI(df['adjusted_close'], 14)
     df = df.reset_index(drop=True).fillna(pd.np.nan)
     return df
 
@@ -58,7 +58,6 @@ def getNews():
     for row in session.execute(sql_query):
         df = df.append(pd.DataFrame(row, index=[0]))
     print(df.head())
-    df['RSI'] = computeRSI(df['adjusted_close'], 14)
     df = df.reset_index(drop=True).fillna(pd.np.nan)
     
     return df.to_json()
