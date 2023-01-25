@@ -21,6 +21,8 @@ session.row_factory = dict_factory
 app = Flask(__name__)
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
+
+#Tinh chi so RSI, truyen vao cung du lieu khi goi cac API cu co them 1 cot RSI
 # Vẽ biểu đồ chứng khoán của mã code trong thời gian n ngày
 @app.route('/OLHC/<code>/<n>', methods = ['GET'])
 def getN(code, n):
