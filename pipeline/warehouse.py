@@ -55,18 +55,18 @@ class CassandraStorage(object):
         # create table for historical data
         self.session.execute(
             """CREATE TABLE IF NOT EXISTS HISTORICAL (
-            TIME timestamp,
-            SYMBOL text,
-            OPEN float,
-            HIGH float,
-            LOW float,
-            CLOSE float,
-            ADJUSTED_CLOSE float,
-            VOLUME float,
-            dividend_amount float,
-            split_coefficient float,
-            PRIMARY KEY (SYMBOL, TIME)
-            );""")
+                TIME timestamp,
+                SYMBOl text,
+                OPEN float,
+                HIGH float,
+                LOW float,
+                CLOSE float,
+                VOLUME float,
+                CHANGE float,
+                RSI float,
+                EMA float,
+                PRIMARY KEY (SYMBOL, TIME)
+                );""")
 
         # create table for tick data
         self.session.execute(
@@ -106,7 +106,7 @@ class CassandraStorage(object):
             'news',
             bootstrap_servers=config['kafka_broker'])
 
-    def historical_to_cassandra(self, price):
+    def historical_to_cassandra(self, data):
         for dict_data in price:
             for key in ['open', 'high', 'low', 'close', 'volume', 'adjusted_close', 'dividend_amount',
                         'split_coefficient']:
@@ -183,7 +183,7 @@ def main_realtime_news():
 
 def main_aftertradingday():
     for symbol in SYMBOL_LIST[:]:
-        value_daily = get_historical_data(symbol=symbol, outputsize='full')
+        value_daily = get_historical_data(symbol=symbol)
 
         database = CassandraStorage()
         database.kafka_consumer()

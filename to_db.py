@@ -6,7 +6,7 @@ session = cluster.connect()
 
 session.set_keyspace("stocks")
 session.execute(
-    """CREATE TABLE IF NOT EXISTS TICK (
+    """CREATE TABLE IF NOT EXISTS HISTORICAL (
     TIME timestamp,
     SYMBOl text,
     OPEN float,
@@ -26,7 +26,7 @@ for symbol in SYMBOL_LIST:
   df['EMA'] = computeEMA(df['close'])
   df['change'] = df['close'].pct_change()
   for i in range(14, len(df)):
-    query = "INSERT INTO TICK (time, symbol, open, high, low, close, volume, change, rsi, ema)"\
+    query = "INSERT INTO HISTORICAL (time, symbol, open, high, low, close, volume, change, rsi, ema)"\
               "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
             .format(df.loc[i]['date'], symbol, df.loc[i]['open'], df.loc[i]['high'], df.loc[i]['low'], df.loc[i]['close'], df.loc[i]['volume'], df.loc[i]['change'], df.loc[i]['RSI'], df.loc[i]['EMA'] )
     session.execute(query)
