@@ -52,7 +52,7 @@ def getBang_rightnow(code, minutes):
 @app.route('/news', methods = ['GET'])
 def getNews():
 
-    sql_query = "SELECT * FROM {}.{} LIMIT 10".format("stocks", "news")
+    sql_query = "SELECT * FROM {}.{} LIMIT 6".format("stocks", "news")
     df = pd.DataFrame()
     for row in session.execute(sql_query):
         df = df.append(pd.DataFrame(row, index=[0]))
@@ -63,7 +63,7 @@ def getNews():
 
 @app.route('/info/<code>', methods = ['GET'])
 def getInfo(code):
-    sql_query = "SELECT * FROM {}.{} WHERE SYMBOL = '{}' ORDER BY time ASC LIMIT 200".format("stocks", "historical", code)
+    sql_query = "SELECT * FROM {}.{} WHERE SYMBOL = '{}' ORDER BY time DESC LIMIT 2000".format("stocks", "historical", code)
     df = pd.DataFrame()
     print(df)
     # df = df.sort_values(by='time').reset_index(drop=True)

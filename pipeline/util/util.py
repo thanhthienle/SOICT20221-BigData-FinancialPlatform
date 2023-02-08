@@ -49,7 +49,8 @@ def toInt(x: str):
 
 def convertToDate(x: str):
     if isinstance(x, str):
-      return datetime.datetime.strptime(x, '%d/%m/%Y')
+      ts = time.mktime(datetime.datetime.strptime(x, "%d/%m/%Y").timetuple()) + 3600*7
+      return datetime.datetime.fromtimestamp(ts)
     return x
 
 def normalize_data(code):
