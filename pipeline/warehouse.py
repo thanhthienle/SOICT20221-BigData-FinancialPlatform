@@ -84,17 +84,6 @@ class CassandraStorage(object):
             FLOOR float,
             PRIMARY KEY (SYMBOL, TIME)
             );""")
-        
-        "symbol": symbol,
-        "date": convertDate(time.find_all("div")[1].text),
-        "volume": convertSingle(info.find("div", class_="v2").text),
-        "close": convertSingle(info.find("div", class_="dltlu-point").text),
-        "ref": convertSingle(info.find("div", id="REF").text),
-        "ceil": convertSingle(info.find("div", id="CE").text),
-        "floor": convertSingle(info.find("div", id="FL").text),
-        "open": convertSingle(price_detail.find_all("div", class_="right")[0].text),
-        "high": convertSingle(price_detail.find_all("div", class_="right")[1].text),
-        "low": convertSingle(price_detail.find_all("div", class_="right")[2].text),
 
         # create table for news
         self.session.execute(
@@ -188,14 +177,9 @@ def main_realtime_news():
 
 
 def main_aftertradingday():
-    for symbol in SYMBOL_LIST[:]:
-        value_daily = get_historical_data(symbol=symbol)
-
-        database = CassandraStorage()
-        database.kafka_consumer()
-
-        database.historical_to_cassandra(value_daily)
-        time.sleep(15)
+    database = CassandraStorage()
+    database.kafka_consumer()
+    database.update_cassandra_after_trading_day()
 
 
 if __name__ == "__main__":

@@ -107,6 +107,7 @@ def kafka_producer_update_history(kafka_producer, symbols):
         value = get_historical_data(symbol)
         # transform ready-to-send data to bytes, record sending-time adjusted to the trading timezone
         kafka_producer.send(topic=config['topic_name3'], value=bytes(str(value), 'utf-8'))
+        time.sleep(10)
         print("Sent {}'s historical data".format(symbol))
 
 def kafka_producer_single(kafka_producer, symbols):
