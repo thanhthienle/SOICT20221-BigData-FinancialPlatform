@@ -89,43 +89,43 @@ def getPrices(code):
     df = df.reset_index(drop=True).fillna(pd.np.nan)
 
     return df.to_json()
-@app.route('/stream', methods = ['GET'])
-def SparkStreamd():
+# @app.route('/stream', methods = ['GET'])
+# def SparkStreamd():
 
-    spark = SparkSession \
-    .builder \
-    .appName("StructuredNetworkWordCount") \
-    .getOrCreate()
+#     spark = SparkSession \
+#     .builder \
+#     .appName("StructuredNetworkWordCount") \
+#     .getOrCreate()
 
-    raw_df = spark\
-        .readStream\
-        .format("kafka")\
-        .option("kafka.bootstrap.servers", config['kafka_broker'])\
-        .option("subscribe",  config['topic_name2'])\
-        .load().selectExpr("CAST(value AS STRING)")
+#     raw_df = spark\
+#         .readStream\
+#         .format("kafka")\
+#         .option("kafka.bootstrap.servers", config['kafka_broker'])\
+#         .option("subscribe",  config['topic_name2'])\
+#         .load().selectExpr("CAST(value AS STRING)")
     
-    schema = StructType(
-    [
-            StructField("symbol", StringType()),
-            StructField("time", StringType()),
-            StructField("open", FloatType()),
-            StructField("high", FloatType()),
-            StructField("low", FloatType()),
-            StructField("close", FloatType()),
-            StructField("volume", StringType()),
-            StructField("last_trading_day", StringType()),
-            StructField("previous_close", StringType()),
-            StructField("change", StringType()),
-            StructField("change_percent", StringType()),
+#     schema = StructType(
+#     [
+#             StructField("symbol", StringType()),
+#             StructField("time", StringType()),
+#             StructField("open", FloatType()),
+#             StructField("high", FloatType()),
+#             StructField("low", FloatType()),
+#             StructField("close", FloatType()),
+#             StructField("volume", StringType()),
+#             StructField("last_trading_day", StringType()),
+#             StructField("previous_close", StringType()),
+#             StructField("change", StringType()),
+#             StructField("change_percent", StringType()),
             
-    ])
-    stock_df = raw_df.select(from_json(raw_df.value, schema).alias("data"))
-    stock_df.writeStream\
-      .format("console")\
-      .outputMode("append")\
-      .start()\
+#     ])
+#     stock_df = raw_df.select(from_json(raw_df.value, schema).alias("data"))
+#     stock_df.writeStream\
+#       .format("console")\
+#       .outputMode("append")\
+#       .start()\
     
-    stock_df.awaitTermination()
+#     stock_df.awaitTermination()
 
 if __name__ == '__main__':
     app.run(debug = True)

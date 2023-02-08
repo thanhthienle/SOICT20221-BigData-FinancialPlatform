@@ -39,6 +39,6 @@ output cot gia tri cua ma co phieu day nhung muot hon
 
 vd: df['EMA'] = calEMA(df['close'])
 """
-def calEMA(data, com = 0.5):
+def computeEMA(data, com = 0.5):
     ema = data.ewm(com= com).mean()
     return ema
