@@ -28,7 +28,6 @@ class CassandraStorage(object):
         self.consumer2 = None
         self.consumer3 = None
         self.kafka_consumer()
-        # self.symbol = symbol.replace('^', '')
         self.key_space = config['key_space']
 
         # init a Cassandra cluster instance
@@ -89,18 +88,14 @@ class CassandraStorage(object):
         # create table for news
         self.session.execute(
             """CREATE TABLE IF NOT EXISTS NEWS (
+            TIME timestamp,
             TITLE text,
             SOURCE text,
             IMG text,
-            PRIMARY KEY (TITLE)
+            PRIMARY KEY (TITLE, TIME)
             )""")
 
     def kafka_consumer(self):
-        """
-        initialize a Kafka consumer 
-        :return: None
-        
-        """
         self.consumer1 = KafkaConsumer(
             config['topic_name1'],
             bootstrap_servers=config['kafka_broker'])
@@ -112,12 +107,6 @@ class CassandraStorage(object):
             bootstrap_servers=config['kafka_broker'])
 
     def historical_to_cassandra(self, price):
-        """
-        store historical data to Cassandra database
-            :primary key: time,symbol
-        :return: None
-
-        """
         for dict_data in price:
             for key in ['open', 'high', 'low', 'close', 'volume', 'adjusted_close', 'dividend_amount',
                         'split_coefficient']:
@@ -132,12 +121,6 @@ class CassandraStorage(object):
             print("Stored {}\'s historical data at {}".format(dict_data['symbol'], dict_data['time']))
 
     def tick_stream_to_cassandra(self):
-        """
-        store streaming data of second frequency to Cassandra database
-            :primary key: time,symbol
-        :return: None
-        
-        """
         for msg in self.consumer2:
             # decode msg value from byte to utf-8
             dict_data = ast.literal_eval(msg.value.decode("utf-8"))
@@ -160,10 +143,6 @@ class CassandraStorage(object):
             print("Stored {}\'s tick data at {}".format(dict_data['symbol'], dict_data['time']))
 
     def update_cassandra_after_trading_day(self):
-        """
-        main function to update recent trading day's daily price (mainly for updating the adjusted close price),
-        and 1min frequency price(to fill in empty data points caused by errors)
-        """
         for symbol in SYMBOL_LIST[:]:
             value_daily = get_historical_data(symbol=symbol, outputsize='full')
 
@@ -180,9 +159,9 @@ class CassandraStorage(object):
             # except Exception as e:
             #     print(e)
             for data in dict_data:
-                query = "INSERT INTO NEWS (title, source, img) " \
-                        "VALUES ('{}', '{}', '{}');" \
-                    .format(data['title'], data['source'], data['img'])
+                query = "INSERT INTO NEWS (time, title, source, img) " \
+                "VALUES ('{}', '{}', '{}', '{}');" \
+                    .format(data['time'], data['title'], data['source'], data['img'])
                 self.session.execute(query)
 
             # print("Stored news '{}' at {}".format(dict_data['title'],dict_data['publishedAt']))
@@ -192,10 +171,6 @@ class CassandraStorage(object):
 
 
 def main_realtime():
-    """
-    main function to store realtime data;
-    recommend to set tick=False, as getting tick data would cause rate limiting error from API
-    """
     database = CassandraStorage()
     database.kafka_consumer()
     database.tick_stream_to_cassandra()
@@ -207,10 +182,6 @@ def main_realtime_news():
 
 
 def main_aftertradingday():
-    """
-    main function to update recent trading day's daily price (mainly for updating the adjusted close price),
-    and 1min frequency price(to fill in empty data points caused by errors)
-    """
     for symbol in SYMBOL_LIST[:]:
         value_daily = get_historical_data(symbol=symbol, outputsize='full')
 
@@ -222,6 +193,8 @@ def main_aftertradingday():
 
 
 if __name__ == "__main__":
+    # historical
     # main_aftertradingday()
-    main_realtime()
+    # tick
+    # main_realtime()
     main_realtime_news()
