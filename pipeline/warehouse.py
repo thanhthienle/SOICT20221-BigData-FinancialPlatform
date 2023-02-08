@@ -1,10 +1,11 @@
 import ast
 import time
-from util.util import string_to_float, normalize_data
+from util.util import string_to_float, computeEMA, computeRSI
 from util.util import SYMBOL_LIST
 from util.config import config
 from kafka import KafkaConsumer
 from cassandra.cluster import Cluster, NoHostAvailable
+import pandas as pd
 from producer import get_historical_data
 
 
@@ -78,12 +79,22 @@ class CassandraStorage(object):
             LOW float,
             CLOSE float,
             VOLUME float,
-            last_trading_day text,
-            previous_close float,
-            change float,
-            change_percent float,
+            REF float,
+            CEIL float,
+            FLOOR float,
             PRIMARY KEY (SYMBOL, TIME)
             );""")
+        
+        "symbol": symbol,
+        "date": convertDate(time.find_all("div")[1].text),
+        "volume": convertSingle(info.find("div", class_="v2").text),
+        "close": convertSingle(info.find("div", class_="dltlu-point").text),
+        "ref": convertSingle(info.find("div", id="REF").text),
+        "ceil": convertSingle(info.find("div", id="CE").text),
+        "floor": convertSingle(info.find("div", id="FL").text),
+        "open": convertSingle(price_detail.find_all("div", class_="right")[0].text),
+        "high": convertSingle(price_detail.find_all("div", class_="right")[1].text),
+        "low": convertSingle(price_detail.find_all("div", class_="right")[2].text),
 
         # create table for news
         self.session.execute(
@@ -103,18 +114,8 @@ class CassandraStorage(object):
             config['topic_name2'],
             bootstrap_servers=config['kafka_broker'])
         self.consumer3 = KafkaConsumer(
-            'news',
+            config['topic_name1'],
             bootstrap_servers=config['kafka_broker'])
-
-    def historical_to_cassandra(self, data):
-            query = "INSERT INTO HISTORICAL (time, symbol, open, high, low, close, adjusted_close, volume, " \
-                    "dividend_amount, split_coefficient) VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
-                .format(dict_data['time'], dict_data['symbol'],
-                        dict_data['open'], dict_data['high'], dict_data['low'],
-                        dict_data['close'], dict_data['adjusted_close'], dict_data['volume'],
-                        dict_data['dividend_amount'], dict_data['split_coefficient'])
-            self.session.execute(query)
-            print("Stored {}\'s historical data at {}".format(dict_data['symbol'], dict_data['time']))
 
     def tick_stream_to_cassandra(self):
         for msg in self.consumer2:
@@ -139,21 +140,30 @@ class CassandraStorage(object):
             print("Stored {}\'s tick data at {}".format(dict_data['symbol'], dict_data['time']))
 
     def update_cassandra_after_trading_day(self):
-        for symbol in SYMBOL_LIST[:]:
-            value_daily = get_historical_data(symbol=symbol, outputsize='full')
-
-            self.historical_to_cassandra(value_daily)
-            time.sleep(15)
-
-    def news_to_cassandra(self):
         for msg in self.consumer3:
             dict_data = ast.literal_eval(msg.value.decode("utf-8"))
+            sql_query = "SELECT * FROM {}.{} WHERE SYMBOL = '{}' ORDER BY time DESC LIMIT 20".format("stocks", "historical", dict_data[0]['symbol'])
+            df = pd.DataFrame()
+            # df = df.sort_values(by='time').reset_index(drop=True)
+            for row in self.session.execute(sql_query):
+                df = df.append(pd.DataFrame(row, index=[0]))
+            df = df.drop(columns=["ema", "rsi", "change"])
+            df = df.head(20)
+            df_2 = pd.DataFrame(dict_data)
+            df_new = pd.concat([df_2, df])
+            df_new['RSI'] = computeRSI(df_new['close'])
+            df_new['EMA'] = computeEMA(df_new['close'])
+            df_new['change'] = df_new['close'].pct_change()
+            query = "INSERT INTO HISTORICAL (time, symbol, open, high, low, close, volume, change, rsi, ema)"\
+              "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
+            .format(df_new.loc[0]['date'], df_new.loc[0]['symbol'], df_new.loc[0]['open'], df_new.loc[0]['high'], df_new.loc[0]['low'], df_new.loc[0]['close'], df_new.loc[0]['volume'], df_new.loc[0]['change'], df_new.loc[0]['RSI'], df_new.loc[0]['EMA'] )
+            self.session.execute(query)
+            print("Stored {}\'s historical data at {}".format(df_new.loc[0]['symbol'], df_new.loc[0]['time']))
+
+    def news_to_cassandra(self):
+        for msg in self.consumer1:
+            dict_data = ast.literal_eval(msg.value.decode("utf-8"))
             print(dict_data)
-            # publishtime = dict_data['publishedAt'][:10] + ' ' + dict_data['publishedAt'][11:19]
-            # try:
-            #     dict_data['description'] = dict_data['description'].replace('\'', '@@')
-            # except Exception as e:
-            #     print(e)
             for data in dict_data:
                 query = "INSERT INTO NEWS (time, title, source, img) " \
                 "VALUES ('{}', '{}', '{}', '{}');" \
