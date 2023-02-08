@@ -1,6 +1,6 @@
 import ast
 import time
-from util.util import string_to_float
+from util.util import string_to_float, normalize_data
 from util.util import SYMBOL_LIST
 from util.config import config
 from kafka import KafkaConsumer
@@ -107,10 +107,6 @@ class CassandraStorage(object):
             bootstrap_servers=config['kafka_broker'])
 
     def historical_to_cassandra(self, data):
-        for dict_data in price:
-            for key in ['open', 'high', 'low', 'close', 'volume', 'adjusted_close', 'dividend_amount',
-                        'split_coefficient']:
-                dict_data[key] = string_to_float(dict_data[key])
             query = "INSERT INTO HISTORICAL (time, symbol, open, high, low, close, adjusted_close, volume, " \
                     "dividend_amount, split_coefficient) VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
                 .format(dict_data['time'], dict_data['symbol'],

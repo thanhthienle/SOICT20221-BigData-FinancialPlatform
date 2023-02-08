@@ -25,7 +25,7 @@ def convertTime(x: str):
 
 def convertChange(x: str):
     x = x.split("(")[1]
-    return x.split(" %")[0]
+    return float(x.split(" %")[0])/100
 
 def convertSingle(x: str):
     x = x.replace("\r\n", "")

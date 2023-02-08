@@ -4,7 +4,7 @@ import datetime
 import numpy as np
 from pytz import timezone
 from util.config import config
-from util.util import TIME_ZONE, SYMBOL_LIST, convertChange, convertPrice, convertTime, convertDate, convertSingle
+from util.util import TIME_ZONE, SYMBOL_LIST, convertChange, convertPrice, convertToDate, convertDate, convertSingle
 from kafka import KafkaProducer
 from multiprocessing import Pool
 from itertools import repeat
@@ -28,16 +28,16 @@ def get_historical_data(symbol='AAPL', outputsize='full'):
     response = requests.get('https://s.cafef.vn/Lich-su-giao-dich-{}-1.chn#data'.format(symbol))
     soup = BeautifulSoup(response.content, "html.parser")
     info = soup.find("tr", id="ContentPlaceHolder1_ctl03_rptData2_altitemTR_1")
-    data = {
+    data = [{
         "symbol": symbol,
-        "date": convertTime(info.find("td", class_="Item_DateItem").text),
+        "date": convertToDate(info.find("td", class_="Item_DateItem").text),
         "close": convertPrice(info.find_all("td", class_="Item_Price10")[1].text),
         "change": convertChange(info.find("td", class_="Item_ChangePrice").text),
         "volume": convertPrice(info.find_all("td", class_="Item_Price10")[2].text),
         "open": convertPrice(info.find_all("td", class_="Item_Price10")[5].text),
         "high": convertPrice(info.find_all("td", class_="Item_Price10")[6].text),
         "low": convertPrice(info.find_all("td", class_="Item_Price10")[7].text),
-    }
+    }]
     return data
 
 def check_trading_hour(data_time):
