@@ -6,6 +6,11 @@ from util.config import config
 from kafka import KafkaConsumer
 from cassandra.cluster import Cluster, NoHostAvailable
 import pandas as pd
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+from cassandra.cluster import Cluster
+import os
 
 
 # =============================================================================
@@ -106,26 +111,58 @@ class CassandraStorage(object):
             bootstrap_servers=config['kafka_broker'])
 
     def tick_stream_to_cassandra(self):
-        for msg in self.consumer2:
-            # decode msg value from byte to utf-8
-            dict_data = ast.literal_eval(msg.value.decode("utf-8"))
-            print(dict_data)
-            # transform price data from string to float
-            for key in ['open', 'high', 'low', 'close', 'volume', 'previous_close', 'change']:
-                dict_data[key] = string_to_float(dict_data[key])
+        spark = SparkSession.builder.appName("StreamingToCassandra").getOrCreate()
+        os.environ['PYSPARK_SUBMIT_ARGS'] = '--packages org.apache.spark:spark-streaming-kafka-0-10_2.12:3.2.0,org.apache.spark:spark-sql-kafka-0-10_2.12:3.2.0 pyspark-shell'
 
-            # dict_data['change_percent'] = float(dict_data['change_percent'].strip('%')) / 100.
-            dict_data['change_percent'] = float(dict_data['change_percent']) / 100.
-            query = "INSERT INTO TICK (time, symbol, open, high, low, close, volume, previous_close, " \
-                    "change, change_percent, last_trading_day) " \
-                    "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {}, '{}');" \
-                .format(dict_data['time'], dict_data['symbol'],
-                        dict_data['open'], dict_data['high'], dict_data['low'], dict_data['close'], dict_data['volume'],
-                        dict_data['previous_close'], dict_data['change'], dict_data['change_percent'],
-                        dict_data['last_trading_day'])
 
-            self.session.execute(query)
-            print("Stored {}\'s tick data at {}".format(dict_data['symbol'], dict_data['time']))
+        # Define the schema for the incoming data
+        schemaStock = StructType(
+        [
+            StructField("symbol", StringType()),
+            StructField("time", TimestampType()),
+            StructField("open", FloatType()),
+            StructField("high", FloatType()),
+            StructField("low", FloatType()),
+            StructField("close", FloatType()),
+            StructField("volume", StringType()),
+            StructField("previous_close", StringType()),
+            StructField("ref", StringType()),
+            StructField("ceil", StringType()),
+            StructField("floor", StringType()),
+                
+        ])
+        # Read data from the Kafka topic
+        streaming_df = spark \
+        .readStream \
+        .format("kafka") \
+        .option("kafka.bootstrap.servers", "localhost:9092") \
+        .option("subscribe", "topic_name2") \
+        .load()
+
+        decoded_df = streaming_df.select(
+            from_json(col("value").cast("string"), schema).alias("parsed_data")
+        )
+
+        extracted_df = decoded_df.select("parsed_data.*")
+
+        def write_to_cassandra(row):
+            cluster = Cluster(['127.0.0.1'])
+            session = cluster.connect()
+
+            # Insert the row into the Cassandra table
+            session.execute(
+                "INSERT INTO stocks.tick (time, symbol, open, high, low, close, volume, ref, ceil, floor) "
+                "VALUES (%s, %s, %s)",
+                (row.date, row.symbol, row.open, row.high, row.low, row.close, row.volume, row.ref, row.ceil, row.floor)
+            )
+
+        query = extracted_df \
+        .writeStream \
+        .foreach(write_to_cassandra) \
+        .start()
+
+        # Wait for the query to finish
+        query.awaitTermination()
 
     def update_cassandra_after_trading_day(self):
         for msg in self.consumer3:

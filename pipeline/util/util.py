@@ -36,7 +36,7 @@ def convertDate(x: str):
     x = x.split(" ")
     day = x[3].split("/")
     hour = x[0].split(":")
-    return datetime.datetime(int(day[2]),int(day[1]), int(day[0]), int(hour[1]), int(hour[0]), 0, 0).timestamp()
+    return datetime.datetime(int(day[2]),int(day[1]), int(day[0]), int(hour[0]), int(hour[1]), 0, 0).timestamp()
 
 def toFloat(x: str):
     if isinstance(x, str):
@@ -61,6 +61,7 @@ def normalize_data(code):
         .getOrCreate()
   
   df = spark.read.option("multiline","true").json('data/data_olhc/{}.json'.format(code))
+  print(df.show())
   df = df.dropDuplicates()
   df = df.withColumn("date", to_date(df.date, "dd/MM/yyyy"))  
   df = df.sort(df.date.asc())
