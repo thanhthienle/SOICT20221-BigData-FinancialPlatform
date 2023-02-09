@@ -107,6 +107,13 @@ def computeEMA(data, com = 0.5):
     ema = data.ewm(com= com).mean()
     return ema
 
+def computeRSI (data, time_window = 14):
+    diff = data.diff(1).dropna()        # diff in one field(one day)
+
+    #this preservers dimensions off diff values
+    up_chg = 0 * diff
+    down_chg = 0 * diff
+
 SYMBOL_LIST = [
     "STB", "VIC", "SSI", "MSN", "FPT", "HAG", "KDC", "EIB", "DPM", "VNM",
     ]   

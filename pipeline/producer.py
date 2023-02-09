@@ -172,7 +172,7 @@ if __name__ == "__main__":
         schedule.every(60).seconds.do(kafka_producer_single, test_producer, SYMBOL_LIST)
     else:
         schedule.every(60).seconds.do(kafka_producer_fake, test_producer, SYMBOL_LIST)
-    schedule.every(900).seconds.do(kafka_producer_news, test_producer)
+    schedule.every(5).seconds.do(kafka_producer_news, test_producer)
     schedule.every().day.at("18:00").do(kafka_producer_update_history, test_producer, SYMBOL_LIST)
     while True:
         schedule.run_pending()

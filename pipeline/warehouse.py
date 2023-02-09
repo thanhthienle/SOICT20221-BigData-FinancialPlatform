@@ -6,7 +6,6 @@ from util.config import config
 from kafka import KafkaConsumer
 from cassandra.cluster import Cluster, NoHostAvailable
 import pandas as pd
-from producer import get_historical_data
 
 
 # =============================================================================
