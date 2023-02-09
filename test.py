@@ -33,7 +33,7 @@ def SparkStreamd():
   ])
 
   raw_df = spark\
-      .readStream\
+      .read\
       .format("kafka")\
       .option("kafka.bootstrap.servers", config['kafka_broker'])\
       .option("subscribe",  config['topic_fake'])\
@@ -50,6 +50,8 @@ def writeToCassandra(writeDF, epochId):
     .mode("append") \
     .save()
 
+def savetocsv(df, epichId):
+  df.write.format("csv").save('stream')
 def topNChange():
   stockdf, spark, sche = SparkStreamd()
   
@@ -70,8 +72,8 @@ def topNChange():
   # ans = dict(sorted(change, key=change.get, reverse=True)[:5])
   #an = spark.createDataFrame(change)
   #ssi = stockdf.select('change%').where('symbol == "SSI"'
-  
-  query =  stockdf.writeStream\
+  #.foreachBatch(savetocsv)\
+  query =  stockdf.write\
     .format("console")\
     .outputMode("append")\
     .start()

@@ -56,6 +56,10 @@ def get_tick_intraday_data(symbol='AAPL'):
     info = soup.find("div", class_="dlt-left")
     time = soup.find("div", class_="dltlu-time")
     price_detail = info.find("ul", class_="dtlu-price-detail")
+    previous_close = previous[symbol]
+    close = float(convertSingle(info.find("div", class_="dltlu-point").text))
+    change = (close - previous_close)/previous_close
+    previous[symbol] = close
     data = {
         "symbol": symbol,
         "date": convertDate(time.find_all("div")[1].text),
@@ -67,9 +71,11 @@ def get_tick_intraday_data(symbol='AAPL'):
         "open": convertSingle(price_detail.find_all("div", class_="right")[0].text),
         "high": convertSingle(price_detail.find_all("div", class_="right")[1].text),
         "low": convertSingle(price_detail.find_all("div", class_="right")[2].text),
+        'previous_close':previous_close,
+        'change': change
     }
 
-    return data
+    return data, previous
 
 
 def get_news():
@@ -103,7 +109,7 @@ def get_news():
     return news
 
 
-def kafka_producer_single(kafka_producer, symbols):
+def kafka_producer_single(kafka_producer, symbols,previous):
     """
     :param kafka_producer: (KafkaProducer) an instance of KafkaProducer with configuration written in config.py
     :param symbol: (str) symbol of the stock
@@ -113,11 +119,35 @@ def kafka_producer_single(kafka_producer, symbols):
     """
     # get data
     for symbol in symbols: 
-        value = get_tick_intraday_data(symbol)
+        response = requests.get("https://s.cafef.vn/hose/{}-.chn".format(symbol))
+        soup = BeautifulSoup(response.content, "html.parser")
+        info = soup.find("div", class_="dlt-left")
+        time = soup.find("div", class_="dltlu-time")
+        price_detail = info.find("ul", class_="dtlu-price-detail")
+        close = float(convertSingle(info.find("div", class_="dltlu-point").text))
+        previous_close = previous[symbol]
+        
+        change = (close - previous_close)/previous_close
+        if close != previous_close:
+            previous[symbol] = close
+        value = {
+            "symbol": symbol,
+            "date": convertDate(time.find_all("div")[1].text),
+            "volume": convertSingle(info.find("div", class_="v2").text),
+            "close": str(close),
+            "ref": convertSingle(info.find("div", id="REF").text),
+            "ceil": convertSingle(info.find("div", id="CE").text),
+            "floor": convertSingle(info.find("div", id="FL").text),
+            "open": convertSingle(price_detail.find_all("div", class_="right")[0].text),
+            "high": convertSingle(price_detail.find_all("div", class_="right")[1].text),
+            "low": convertSingle(price_detail.find_all("div", class_="right")[2].text),
+            'change': str(change),
+        }
         now_timezone = datetime.datetime.now(timezone(TIME_ZONE))
         # transform ready-to-send data to bytes, record sending-time adjusted to the trading timezone
         kafka_producer.send(topic=config['topic_name2'], value=bytes(str(value), 'utf-8'))
-        #print(value)
+        print("send {} at {}".format(symbol,now_timezone))
+    return previous
 
 def kafka_producer_news(kafka_producer):
     news = get_news()
@@ -159,7 +189,7 @@ def kafka_producer_fake(kafka_producer, symbols, previous):
 
             kafka_producer.send(topic=config['topic_name2'], value=bytes(str(value), 'utf-8'))
             print("Sent {}'s fake data.".format(symbol[0]))
-    return previous_close
+    return previous
 
 if __name__ == "__main__":
     test_producer = KafkaProducer(bootstrap_servers=config['kafka_broker'])
@@ -173,8 +203,8 @@ if __name__ == "__main__":
     # else:
     #     schedule.every(60).seconds.do(kafka_producer_fake, test_producer, SYMBOL_LIST)
     for symbol in SYMBOL_LIST:
-        previous_close[symbol] = 0
-    previous_close = schedule.every(10).seconds.do(kafka_producer_fake, test_producer, SYMBOL_LIST, previous_close)
+       previous_close[symbol] = 9999
+    previous_close = schedule.every(10).seconds.do(kafka_producer_single, test_producer, SYMBOL_LIST, previous_close)
     schedule.every(600).seconds.do(kafka_producer_news, test_producer)
     while True:
         schedule.run_pending()

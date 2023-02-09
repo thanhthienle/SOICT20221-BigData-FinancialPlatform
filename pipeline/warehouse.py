@@ -71,7 +71,7 @@ class CassandraStorage(object):
 
         # create table for tick data
         self.session.execute(
-            """CREATE TABLE IF NOT EXISTS TICK1 (
+            """CREATE TABLE IF NOT EXISTS TICK2 (
             DATE timestamp,
             SYMBOL text,
             OPEN float,
@@ -82,6 +82,7 @@ class CassandraStorage(object):
             REF float, 
             CEIL float, 
             FLOOR float,
+            CHANGE float,
             PRIMARY KEY (SYMBOL, DATE)
             );""")
         
@@ -97,7 +98,7 @@ class CassandraStorage(object):
             REF float, 
             CEIL float, 
             FLOOR float,
-            ChANGE float,
+            CHANGE float,
             PRIMARY KEY (SYMBOL, DATE),
             );""")
 
@@ -140,20 +141,21 @@ class CassandraStorage(object):
         for msg in self.consumer2:
             # decode msg value from byte to utf-8
             dict_data = ast.literal_eval(msg.value.decode("utf-8"))
+            print(dict_data)
             # transform price data from string to float
-            for key in ['volume', 'close', 'ref', 'ceil', 'floor', 'open', 'high', 'low']:
+            for key in ['volume', 'close', 'ref', 'ceil', 'floor', 'open', 'high', 'low','change']:
                 dict_data[key] = dict_data[key].replace(",", "")
                 dict_data[key] = string_to_float(dict_data[key])
             dict_data['date'] = datetime.datetime.utcfromtimestamp(dict_data['date'])
             # dict_data['change_percent'] = float(dict_data['change_percent'].strip('%')) / 100.
             #dict_data['change_percent'] = float(dict_data['change_percent']) / 100.
-            query = "INSERT INTO TICK1 (SYMBOL, DATE, VOLUME, CLOSE, REF, CEIL, FLOOR, OPEN, HIGH, LOW)" \
-                    "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
+            query = "INSERT INTO TICK2 (SYMBOL, DATE, VOLUME, CLOSE, REF, CEIL, FLOOR, OPEN, HIGH, LOW, CHANGE)" \
+                    "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {},{});" \
                 .format( dict_data['symbol'],dict_data['date'],
                         dict_data['volume'], dict_data['close'], dict_data['ref'], dict_data['ceil'], dict_data['floor'],
-                        dict_data['open'], dict_data['high'], dict_data['low'])
+                        dict_data['open'], dict_data['high'], dict_data['low'], dict_data['change'])
             self.session.execute(query)
-            #print("Stored {}\'s tick data at {}".format(dict_data['symbol'], dict_data['date']))
+            print("Stored {}\'s tick data at {}".format(dict_data['symbol'], dict_data['date']))
 
     def update_cassandra_after_trading_day(self):
         for symbol in SYMBOL_LIST[:]:
