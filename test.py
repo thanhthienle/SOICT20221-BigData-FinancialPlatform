@@ -1,7 +1,12 @@
 import requests
 from bs4 import BeautifulSoup
 from pipeline.util.util import convertTime, convertChange, convertPrice, convertToDate
-import pandas as pd
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder\
+        .master("local[*]")\
+        .appName('Stock_platform')\
+        .getOrCreate()
 
 symbol = "FPT"
 response = requests.get('https://s.cafef.vn/Lich-su-giao-dich-{}-1.chn#data'.format(symbol))
@@ -17,4 +22,4 @@ data = [{
         "high": convertPrice(info.find_all("td", class_="Item_Price10")[6].text),
         "low": convertPrice(info.find_all("td", class_="Item_Price10")[7].text),
 }]
-print(pd.DataFrame(data))
+print(spark.createDataFrame(data).head())

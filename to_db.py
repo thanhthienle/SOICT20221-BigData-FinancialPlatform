@@ -1,5 +1,8 @@
-from cassandra.cluster import Cluster, NoHostAvailable
-from pipeline.util.util import normalize_data, computeRSI, computeEMA, SYMBOL_LIST
+from cassandra.cluster import Cluster
+from pipeline.util.util import normalize_data, calculateEma, calculateRsi, SYMBOL_LIST, convertToDate
+from pyspark.sql.functions import lag
+from pyspark.sql.window import Window
+from pyspark.sql.functions import lit
 
 cluster = Cluster()
 session = cluster.connect()
@@ -20,14 +23,28 @@ session.execute(
     PRIMARY KEY (SYMBOL, TIME)
     );""")
 
-for symbol in SYMBOL_LIST:
-  df = normalize_data(symbol)
-  df['RSI'] = computeRSI(df['close'])
-  df['EMA'] = computeEMA(df['close'])
-  df['change'] = df['close'].pct_change()
-  for i in range(14, len(df)):
+def insertToCassandra(row):
     query = "INSERT INTO HISTORICAL (time, symbol, open, high, low, close, volume, change, rsi, ema)"\
-              "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
-            .format(df.loc[i]['date'], symbol, df.loc[i]['open'], df.loc[i]['high'], df.loc[i]['low'], df.loc[i]['close'], df.loc[i]['volume'], df.loc[i]['change'], df.loc[i]['RSI'], df.loc[i]['EMA'] )
+                  "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
+                .format(convertToDate(row.date), row.symbol, row.open, row.high, row.low, row.close, row.volume, row.change, row.RSI, row.EMA )
+    print(query)
     session.execute(query)
-  print("Store " + symbol)
+
+      
+for symbol in SYMBOL_LIST:
+    df = normalize_data(symbol)
+    # df = df.withColumn('RSI', computeRSI(df.close))
+    # df = df.withColumn('EMA', computeEMA(df.close))
+    df = df.withColumn('symbol', lit(symbol))
+    df = df.withColumn('change', (df.close - lag(df.close).over(Window.partitionBy('symbol').orderBy('date'))))
+    df = calculateEma(df)
+    df = calculateRsi(df)
+    df = df.sort(df.date.asc())
+    df = df.na.fill(0)
+    # print(df.show())
+    for row in df.collect():
+        query = "INSERT INTO HISTORICAL (time, symbol, open, high, low, close, volume, change, rsi, ema)"\
+            "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
+          .format(convertToDate(row.date), row.symbol, row.open, row.high, row.low, row.close, row.volume, row.change, row.RSI, row.EMA )
+        session.execute(query)
+    print("Store {}'s historical data".format(symbol))

@@ -1,16 +1,17 @@
-import pandas as pd
 from datetime import timedelta
 import time
 import datetime
+import pyspark.sql.functions as F
+from pyspark.sql.window import Window
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import to_date, udf, col
+from pyspark.sql.types import StringType, FloatType
 
 def string_to_float(string):
     if isinstance(string, str):
         return float(string)
     else:
         return string
-
-def pandas_factory(col_names, table):
-    return pd.DataFrame(table, columns=col_names)
 
 def splitTextToTriplet(string, n):
     words = string.split()
@@ -54,49 +55,61 @@ def convertToDate(x: str):
     return x
 
 def normalize_data(code):
-  df = pd.read_json('data/data_olhc/{}.json'.format(code), convert_dates=False)
-  df = df.drop_duplicates().reset_index(drop=True)  
-  df.date = df.date.apply(convertToDate)
-  df = df.sort_values(by='date').reset_index(drop=True)
+  spark = SparkSession.builder\
+        .master("local[*]")\
+        .appName('Stock_platform')\
+        .getOrCreate()
+  
+  df = spark.read.option("multiline","true").json('data/data_olhc/{}.json'.format(code))
+  df = df.dropDuplicates()
+  df = df.withColumn("date", to_date(df.date, "dd/MM/yyyy"))  
+  df = df.sort(df.date.asc())
+  udfToFloat = udf(toFloat, FloatType())
+  udfToInt = udf(toInt, StringType()) 
   for column in ['close', 'high', 'open', 'low']:
-    df[column] = df[column].apply(toFloat)
+    df = df.withColumn(column, udfToFloat(col(column)))
   for column in ['value', 'volume']:
-    df[column] = df[column].apply(toInt)
+    df = df.withColumn(column, udfToInt(col(column)))
   return df
+
+def calculateEma(data, n_days=25):
+    window = Window.partitionBy('symbol').orderBy("date").rowsBetween(0, n_days - 1)
+    alpha = 2 / (n_days + 1)
+    ema = data.withColumn("EMA", F.avg(data["close"]).over(window))
+    for i in range(1, n_days):
+        ema = ema.withColumn("EMA", (data["close"] * alpha) + (ema["ema"] * (1 - alpha)))
+    return ema
+
+def calculateRsi(data, n_days=25):
+    # Calculate the difference between consecutive "close" values
+    data = data.withColumn("diff", data["close"].cast("double") - F.lag(data["close"]).over(Window.partitionBy('symbol').orderBy("date")))
+    
+    # Calculate the gain and loss over the specified number of days
+    gain = data.withColumn("Gain", F.when(data["diff"] > 0, data["diff"]).otherwise(0.0))
+    loss = data.withColumn("Loss", F.when(data["diff"] < 0, -data["diff"]).otherwise(0.0))
+    
+    # Calculate the average gain and average loss over the specified number of days
+    avg_gain = gain.withColumn("avg_gain", F.avg("Gain").over(Window.partitionBy('symbol').orderBy("date").rowsBetween(-n_days, 0)))
+    avg_loss = loss.withColumn("avg_loss", F.avg("Loss").over(Window.partitionBy('symbol').orderBy("date").rowsBetween(-n_days, 0)))
+    avg_loss = avg_loss.select("date", "avg_loss")  
+    # Combine the gain, loss, average gain and average loss into a single DataFrame
+    combined = avg_gain.join(avg_loss, on=["date"], how="outer")
+    
+    # Calculate the relative strength
+    relative_strength = combined.withColumn("relative_strength", combined["avg_gain"] / combined["avg_loss"])
+    
+    # Calculate the RSI
+    rsi = relative_strength.withColumn("RSI", 100 - (100 / (1 + relative_strength["relative_strength"])))
+    cols = ("diff","Gain","Loss", "avg_gain", "avg_loss", "relative_strength")
+    return rsi.drop(*cols)
 
 def computeEMA(data, com = 0.5):
     ema = data.ewm(com= com).mean()
     return ema
 
-def computeRSI (data, time_window = 14):
-    diff = data.diff(1).dropna()        # diff in one field(one day)
-
-    #this preservers dimensions off diff values
-    up_chg = 0 * diff
-    down_chg = 0 * diff
-    
-    # up change is equal to the positive difference, otherwise equal to zero
-    up_chg[diff > 0] = diff[ diff>0 ]
-    
-    # down change is equal to negative deifference, otherwise equal to zero
-    down_chg[diff < 0] = diff[ diff < 0 ]
-    
-    # check pandas documentation for ewm
-    # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.ewm.html
-    # values are related to exponential decay
-    # we set com=time_window-1 so we get decay alpha=1/time_window
-    up_chg_avg   = up_chg.ewm(com=time_window-1 , min_periods=time_window).mean()
-    down_chg_avg = down_chg.ewm(com=time_window-1 , min_periods=time_window).mean()
-    
-    rs = abs(up_chg_avg/down_chg_avg)
-    rsi = 100 - 100/(1+rs)
-    return rsi
-
 SYMBOL_LIST = [
     "STB", "VIC", "SSI", "MSN", "FPT", "HAG", "KDC", "EIB", "DPM", "VNM",
     ]   
-
-TIME_ZONE = 'US/Eastern'
 
 def prev_weekday(adate):
     while adate.weekday() >= 5: # Mon-Fri are 0-4
