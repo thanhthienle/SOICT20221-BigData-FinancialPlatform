@@ -106,7 +106,7 @@ def kafka_producer_update_history(kafka_producer, symbols):
     for symbol in symbols: 
         value = get_historical_data(symbol)
         # transform ready-to-send data to bytes, record sending-time adjusted to the trading timezone
-        kafka_producer.send(topic=config['topic_name3'], value=bytes(str(value), 'utf-8'))
+        kafka_producer.send(topic=config['topic_name3'], value=value)
         time.sleep(10)
         print("Sent {}'s historical data".format(symbol))
 
@@ -121,7 +121,7 @@ def kafka_producer_single(kafka_producer, symbols):
     # get data
     for symbol in symbols: 
         value = get_tick_intraday_data(symbol)
-
+        print(value)
         # transform ready-to-send data to bytes, record sending-time adjusted to the trading timezone
         kafka_producer.send(topic=config['topic_name2'], value=bytes(str(value), 'utf-8'))
         print("Sent {}'s tick data".format(symbol))
@@ -169,10 +169,10 @@ if __name__ == "__main__":
     # schedule to send data every minute
     if datetime.datetime.now().time() > datetime.time(15, 0, 0) or datetime.datetime.now(
             ).time() < datetime.time(9, 30, 0):
-        schedule.every(60).seconds.do(kafka_producer_single, test_producer, SYMBOL_LIST)
+        schedule.every(10).seconds.do(kafka_producer_single, test_producer, SYMBOL_LIST)
     else:
-        schedule.every(60).seconds.do(kafka_producer_fake, test_producer, SYMBOL_LIST)
-    schedule.every(5).seconds.do(kafka_producer_news, test_producer)
+        schedule.every(10).seconds.do(kafka_producer_single, test_producer, SYMBOL_LIST)
+    schedule.every(900).seconds.do(kafka_producer_news, test_producer)
     schedule.every().day.at("18:00").do(kafka_producer_update_history, test_producer, SYMBOL_LIST)
     while True:
         schedule.run_pending()

@@ -1,8 +1,13 @@
 from cassandra.cluster import Cluster
-from pipeline.util.util import normalize_data, calculateEma, calculateRsi, SYMBOL_LIST, convertToDate
+from pipeline.util.util import normalize_data, calculateEma, calculateRsi, convertToDate
 from pyspark.sql.functions import lag
 from pyspark.sql.window import Window
 from pyspark.sql.functions import lit
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import *
+from pyspark.sql.types import *
+from cassandra.cluster import Cluster
+import os
 
 cluster = Cluster()
 session = cluster.connect()
@@ -30,7 +35,8 @@ def insertToCassandra(row):
     print(query)
     session.execute(query)
 
-      
+SYMBOL_LIST = ["FPT"]
+
 for symbol in SYMBOL_LIST:
     df = normalize_data(symbol)
     # df = df.withColumn('RSI', computeRSI(df.close))
@@ -41,7 +47,7 @@ for symbol in SYMBOL_LIST:
     df = calculateRsi(df)
     df = df.sort(df.date.asc())
     df = df.na.fill(0)
-    # print(df.show())
+    print(df.show())
     for row in df.collect():
         query = "INSERT INTO HISTORICAL (time, symbol, open, high, low, close, volume, change, rsi, ema)"\
             "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
