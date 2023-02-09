@@ -187,6 +187,7 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 ## Contact
 
 Thanh-Thien Le - [@thblsky](https://twitter.com/thblsky) - thienlt.7@gmail.com
+
 Viet-Thang Doan - thang.dv509@gmail.com
 
 <!-- Project Link: [https://github.com/your_username/repo_name](https://github.com/your_username/repo_name) -->
