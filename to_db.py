@@ -30,4 +30,4 @@ for symbol in SYMBOL_LIST:
               "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
             .format(df.loc[i]['date'], symbol, df.loc[i]['open'], df.loc[i]['high'], df.loc[i]['low'], df.loc[i]['close'], df.loc[i]['volume'], df.loc[i]['change'], df.loc[i]['RSI'], df.loc[i]['EMA'] )
     session.execute(query)
-  print("Store " + symbol)
+  print(df)

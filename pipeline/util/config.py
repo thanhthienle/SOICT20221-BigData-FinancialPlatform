@@ -8,7 +8,9 @@ config = {
         'topic_name1': 'stock_streaming1',
         # to transmit second data
         'topic_name2': "stock_streaming2",
-        'key_space': 'stocks'
+        'key_space': 'stocks',
+        'topic_change':"stock_streaming3",
+        'topic_fake':"stock_streaming_fake"
 }
 
 

@@ -1,11 +1,12 @@
 import ast
 import time
-from util.util import string_to_float
+from util.util import string_to_float, convertDate
 from util.util import SYMBOL_LIST
 from util.config import config
 from kafka import KafkaConsumer
 from cassandra.cluster import Cluster, NoHostAvailable
 from producer import get_historical_data
+import datetime
 
 
 # =============================================================================
@@ -55,7 +56,7 @@ class CassandraStorage(object):
         # create table for historical data
         self.session.execute(
             """CREATE TABLE IF NOT EXISTS HISTORICAL (
-                TIME timestamp,
+                TIME date,
                 SYMBOl text,
                 OPEN float,
                 HIGH float,
@@ -70,19 +71,34 @@ class CassandraStorage(object):
 
         # create table for tick data
         self.session.execute(
-            """CREATE TABLE IF NOT EXISTS TICK (
-            TIME timestamp,
+            """CREATE TABLE IF NOT EXISTS TICK1 (
+            DATE timestamp,
             SYMBOL text,
             OPEN float,
             HIGH float,
             LOW float,
             CLOSE float,
             VOLUME float,
-            last_trading_day text,
-            previous_close float,
-            change float,
-            change_percent float,
-            PRIMARY KEY (SYMBOL, TIME)
+            REF float, 
+            CEIL float, 
+            FLOOR float,
+            PRIMARY KEY (SYMBOL, DATE)
+            );""")
+        
+        self.session.execute(
+            """CREATE TABLE IF NOT EXISTS FAKE (
+            DATE timestamp,
+            SYMBOL text,
+            OPEN float,
+            HIGH float,
+            LOW float,
+            CLOSE float,
+            VOLUME float,
+            REF float, 
+            CEIL float, 
+            FLOOR float,
+            ChANGE float,
+            PRIMARY KEY (SYMBOL, DATE),
             );""")
 
         # create table for news
@@ -124,23 +140,20 @@ class CassandraStorage(object):
         for msg in self.consumer2:
             # decode msg value from byte to utf-8
             dict_data = ast.literal_eval(msg.value.decode("utf-8"))
-            print(dict_data)
             # transform price data from string to float
-            for key in ['open', 'high', 'low', 'close', 'volume', 'previous_close', 'change']:
+            for key in ['volume', 'close', 'ref', 'ceil', 'floor', 'open', 'high', 'low']:
+                dict_data[key] = dict_data[key].replace(",", "")
                 dict_data[key] = string_to_float(dict_data[key])
-
+            dict_data['date'] = datetime.datetime.utcfromtimestamp(dict_data['date'])
             # dict_data['change_percent'] = float(dict_data['change_percent'].strip('%')) / 100.
-            dict_data['change_percent'] = float(dict_data['change_percent']) / 100.
-            query = "INSERT INTO TICK (time, symbol, open, high, low, close, volume, previous_close, " \
-                    "change, change_percent, last_trading_day) " \
-                    "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {}, '{}');" \
-                .format(dict_data['time'], dict_data['symbol'],
-                        dict_data['open'], dict_data['high'], dict_data['low'], dict_data['close'], dict_data['volume'],
-                        dict_data['previous_close'], dict_data['change'], dict_data['change_percent'],
-                        dict_data['last_trading_day'])
-
+            #dict_data['change_percent'] = float(dict_data['change_percent']) / 100.
+            query = "INSERT INTO TICK1 (SYMBOL, DATE, VOLUME, CLOSE, REF, CEIL, FLOOR, OPEN, HIGH, LOW)" \
+                    "VALUES ('{}','{}', {}, {}, {}, {}, {}, {}, {}, {});" \
+                .format( dict_data['symbol'],dict_data['date'],
+                        dict_data['volume'], dict_data['close'], dict_data['ref'], dict_data['ceil'], dict_data['floor'],
+                        dict_data['open'], dict_data['high'], dict_data['low'])
             self.session.execute(query)
-            print("Stored {}\'s tick data at {}".format(dict_data['symbol'], dict_data['time']))
+            #print("Stored {}\'s tick data at {}".format(dict_data['symbol'], dict_data['date']))
 
     def update_cassandra_after_trading_day(self):
         for symbol in SYMBOL_LIST[:]:
@@ -196,5 +209,5 @@ if __name__ == "__main__":
     # historical
     # main_aftertradingday()
     # tick
-    # main_realtime()
+    main_realtime()
     main_realtime_news()

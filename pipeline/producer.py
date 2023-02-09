@@ -113,12 +113,11 @@ def kafka_producer_single(kafka_producer, symbols):
     """
     # get data
     for symbol in symbols: 
-        value, time_zone = get_tick_intraday_data(symbol)
-
-        now_timezone = datetime.datetime.now(timezone(time_zone))
+        value = get_tick_intraday_data(symbol)
+        now_timezone = datetime.datetime.now(timezone(TIME_ZONE))
         # transform ready-to-send data to bytes, record sending-time adjusted to the trading timezone
         kafka_producer.send(topic=config['topic_name2'], value=bytes(str(value), 'utf-8'))
-        print("Sent {}'s tick data at {}".format(symbol, now_timezone))
+        #print(value)
 
 def kafka_producer_news(kafka_producer):
     news = get_news()
@@ -128,7 +127,7 @@ def kafka_producer_news(kafka_producer):
     print("Sent economy news : {}".format(now_timezone))
 
 
-def kafka_producer_fake(kafka_producer, symbols):
+def kafka_producer_fake(kafka_producer, symbols, previous):
     """
     send fake data to test visualization
     :param kafka_producer: (KafkaProducer) an instance of KafkaProducer with configuration written in config.py
@@ -136,37 +135,46 @@ def kafka_producer_fake(kafka_producer, symbols):
     :return: None
     """
     for symbol in symbols:
-        close = 2
-        close = close + random.randint(-100, 100)*0.01
-        previous_close = close + random.randint(-100, 100)*0.01
-        change = close - previous_close
-        change_percent = (close - previous_close)/previous_close * 100
-        value = {"symbol": symbol,
-                "time": int(datetime.datetime.now(timezone(TIME_ZONE)).timestamp()*1000),
-                "open": close + random.randint(-100, 100)*0.01,
-                "high": close + random.randint(0, 100)*0.01,
-                "low": close + random.randint(-100, 0)*0.01,
-                "close": close,
-                "volume": int(random.choices(range(0,1000), k=1)[0]),
-                "previous_close": previous_close,
-                "change":  change,
-                "change_percent": change_percent,
-                "last_trading_day": int(datetime.datetime.now(timezone(TIME_ZONE)).timestamp()*1000)}
-        kafka_producer.send(topic=config['topic_name2'], value=bytes(str(value), 'utf-8'))
-        print("Sent {}'s fake data.".format(symbol[0]))
-        print(value)
+        take = random.choice([True, False])
+        
+        if take:
+            if previous[symbol] == 0:
+                close = 2
+            else:
+                close = previous[symbol] + random.randint(-100, 100)*0.01
+            previous_close = previous[symbol]
+            previous[symbol] = close
+            value = {"symbol": symbol,
+                    "time": int(datetime.datetime.now(timezone(TIME_ZONE)).timestamp()*1000),
+                    "open": close + random.randint(-100, 100)*0.01,
+                    "high": close + random.randint(0, 100)*0.01,
+                    "low": close + random.randint(-100, 0)*0.01,
+                    "close": close,
+                    "volume": int(random.choices(range(0,1000), k=1)[0]),
+                    "previous_close": previous_close,
+                    "ref": "{:.4f}".format(close + random.randint(0, 60)*0.01),
+                    "ceil": "{:.4f}".format(close + random.randint(60, 120)*0.01),
+                    "floor": "{:.4f}".format(close + random.randint(-100, -20)*0.01)
+                    }
 
+            kafka_producer.send(topic=config['topic_name2'], value=bytes(str(value), 'utf-8'))
+            print("Sent {}'s fake data.".format(symbol[0]))
+    return previous_close
 
 if __name__ == "__main__":
     test_producer = KafkaProducer(bootstrap_servers=config['kafka_broker'])
     # kafka_producer(producer)
+    previous_close = {}
 
     # schedule to send data every minute
-    if datetime.datetime.now(timezone(TIME_ZONE)).time() > datetime.time(16, 0, 0) or datetime.datetime.now(
-            timezone(TIME_ZONE)).time() < datetime.time(9, 30, 0):
-        schedule.every(60).seconds.do(kafka_producer_single, test_producer, SYMBOL_LIST)
-    else:
-        schedule.every(60).seconds.do(kafka_producer_fake, test_producer, SYMBOL_LIST)
-    schedule.every(900).seconds.do(kafka_producer_news, test_producer)
+    # if datetime.datetime.now(timezone(TIME_ZONE)).time() > datetime.time(16, 0, 0) or datetime.datetime.now(
+    #         timezone(TIME_ZONE)).time() < datetime.time(9, 30, 0):
+    #     schedule.every(60).seconds.do(kafka_producer_single, test_producer, SYMBOL_LIST)
+    # else:
+    #     schedule.every(60).seconds.do(kafka_producer_fake, test_producer, SYMBOL_LIST)
+    for symbol in SYMBOL_LIST:
+        previous_close[symbol] = 0
+    previous_close = schedule.every(10).seconds.do(kafka_producer_fake, test_producer, SYMBOL_LIST, previous_close)
+    schedule.every(600).seconds.do(kafka_producer_news, test_producer)
     while True:
         schedule.run_pending()
