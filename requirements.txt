@@ -3,3 +3,11 @@ pandas
 numpy
 requests
 schedule
+datetime
+pytz
+kafka-python
+newsapi-python
+cassandra-driver
+bokeh
+xmltodict
+pandas_datareader
