@@ -203,8 +203,8 @@ if __name__ == "__main__":
     # else:
     #     schedule.every(60).seconds.do(kafka_producer_fake, test_producer, SYMBOL_LIST)
     for symbol in SYMBOL_LIST:
-       previous_close[symbol] = 9999
-    previous_close = schedule.every(10).seconds.do(kafka_producer_single, test_producer, SYMBOL_LIST, previous_close)
+       previous_close[symbol] = 0
+    previous_close = schedule.every(10).seconds.do(kafka_producer_fake, test_producer, SYMBOL_LIST, previous_close)
     schedule.every(600).seconds.do(kafka_producer_news, test_producer)
     while True:
         schedule.run_pending()

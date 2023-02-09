@@ -25,7 +25,7 @@ def SparkStreamd():
           StructField("low", FloatType()),
           StructField("close", FloatType()),
           StructField("volume", StringType()),
-          StructField("previous_close", StringType()),
+          StructField("previous_close", FloatType()),
           StructField("ref", StringType()),
           StructField("ceil", StringType()),
           StructField("floor", StringType()),
@@ -33,13 +33,14 @@ def SparkStreamd():
   ])
 
   raw_df = spark\
-      .read\
+      .readStream\
       .format("kafka")\
       .option("kafka.bootstrap.servers", config['kafka_broker'])\
-      .option("subscribe",  config['topic_fake'])\
+      .option("subscribe",  config['topic_name2'])\
       .load().selectExpr("CAST(value AS STRING)")
 
-  stockdf = raw_df.selectExpr("CAST(value AS STRING)").select(from_json(col("value"),schemaStock).alias("data")).select("data.*")
+  stockdf = raw_df.selectExpr("CAST(value AS STRING)").select(from_json(col("value"),schemaStock).alias("value"))
+  #.select("data.*")
   
   return stockdf, spark , schemaStock
 
@@ -54,39 +55,17 @@ def savetocsv(df, epichId):
   df.write.format("csv").save('stream')
 def topNChange():
   stockdf, spark, sche = SparkStreamd()
-  
-  stockdf = stockdf.withColumn('perChange',(stockdf['close']-stockdf['previous_close'])/stockdf['previous_close'])
+  stockdf.printSchema()
+  stockdf = stockdf.withColumn("value.change", (col("value.close")-col("value.previous_close"))/col("value.previous_close"))
+  query =  stockdf.selectExpr("CAST(value AS STRING)")\
+  .writeStream\
+  .format("kafka")\
+  .option("kafka.bootstrap.servers", config['kafka_broker'])\
+  .option("checkpointLocation",'./checkpoint')\
+  .option("topic", config['topic_fake'])\
+  .start()
 
-  # sche = StringType([
-  #   StructField('STB',FloatType()),
-  #   StructField('VIC',FloatType()),
-  #   StructField('SSI',FloatType()),
-  #   StructField('MSN',FloatType()),
-  #   StructField('FPT',FloatType()),
-  #   StructField('HAG',FloatType()),
-  #   StructField('KDC',FloatType()),
-  #   StructField('EIB',FloatType()),
-  #   StructField('DPM',FloatType()),
-  #   StructField('VNM',FloatType())
-  # ])
-  # ans = dict(sorted(change, key=change.get, reverse=True)[:5])
-  #an = spark.createDataFrame(change)
-  #ssi = stockdf.select('change%').where('symbol == "SSI"'
-  #.foreachBatch(savetocsv)\
-  query =  stockdf.write\
-    .format("console")\
-    .outputMode("append")\
-    .start()
-  
   query.awaitTermination()
-
-  # query =  stockdf\
-  #   .writeStream\
-  #   .outputMode("update") \
-  #   .foreachBatch(writeToCassandra) \
-  #   .start()
-  #query.awaitTermination()
-
 topNChange()
 
 
