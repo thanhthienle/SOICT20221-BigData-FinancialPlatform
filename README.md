@@ -122,7 +122,7 @@ _Here are the steps_
    ```
 2. Install dependencies
    ```sh
-   pip install requirements.txt
+   pip install -r requirements.txt
    ```
    <!-- 4. Enter your API in `config.js`
       ```js
